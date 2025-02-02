@@ -1,75 +1,119 @@
 package main
 
 import (
-	"fmt"
 	"log"
 	"net/http"
-	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/gorilla/websocket"
+	ws "github.com/vlkhvnn/DocCollab/internal/ws"
 )
+
+// NewHub creates and returns a new Hub.
+func NewHub() *ws.Hub {
+	return &ws.Hub{
+		clients:    make(map[*ws.Client]bool),
+		broadcast:  make(chan []byte),
+		register:   make(chan *ws.Client),
+		unregister: make(chan *ws.Client),
+	}
+}
+
+// Run listens for register, unregister, and broadcast events.
+func (h *ws.Hub) Run() {
+	for {
+		select {
+		case client := <-h.register:
+			h.mu.Lock()
+			h.clients[client] = true
+			h.mu.Unlock()
+			log.Printf("New client registered. Total clients: %d", len(h.clients))
+		case client := <-h.unregister:
+			h.mu.Lock()
+			if _, ok := h.clients[client]; ok {
+				delete(h.clients, client)
+				close(client.send)
+				log.Printf("Client unregistered. Total clients: %d", len(h.clients))
+			}
+			h.mu.Unlock()
+		case message := <-h.broadcast:
+			h.mu.Lock()
+			for client := range h.clients {
+				select {
+				case client.send <- message:
+				default:
+					close(client.send)
+					delete(h.clients, client)
+				}
+			}
+			h.mu.Unlock()
+		}
+	}
+}
 
 // upgrader is used to upgrade HTTP connections to WebSocket connections.
 var upgrader = websocket.Upgrader{
-	// Allow connections from any origin (for development purposes).
-	// In production, you should validate the origin.
 	CheckOrigin: func(r *http.Request) bool {
 		return true
 	},
 }
 
-// echoHandler upgrades the HTTP connection to WebSocket and echoes back received messages.
-func echoHandler(w http.ResponseWriter, r *http.Request) {
-	// Upgrade the connection to WebSocket.
+// serveWs handles WebSocket requests from clients.
+func serveWs(hub *ws.Hub, w http.ResponseWriter, r *http.Request) {
 	conn, err := upgrader.Upgrade(w, r, nil)
 	if err != nil {
 		log.Printf("Failed to upgrade connection: %v", err)
 		return
 	}
-	defer conn.Close()
 
-	log.Printf("Client connected: %s", conn.RemoteAddr())
+	client := &ws.Client{conn: conn, send: make(chan []byte, 256)}
+	hub.register <- client
 
-	// Optionally, set a read deadline to avoid hanging connections.
-	conn.SetReadDeadline(time.Now().Add(60 * time.Second))
+	// Start goroutines for reading from and writing to the client.
+	go client.readPump(hub)
+	go client.writePump()
+}
 
-	// Read messages from the client.
+// readPump pumps messages from the WebSocket connection to the hub.
+func (c *ws.Client) readPump(hub *ws.Hub) {
+	defer func() {
+		hub.unregister <- c
+		c.conn.Close()
+	}()
 	for {
-		messageType, message, err := conn.ReadMessage()
+		_, message, err := c.conn.ReadMessage()
 		if err != nil {
 			log.Printf("Read error: %v", err)
 			break
 		}
-		log.Printf("Received: %s", message)
-
-		// Echo the message back to the client.
-		if err := conn.WriteMessage(messageType, message); err != nil {
+		hub.broadcast <- message
+	}
+}c
+// writePump pumps messages from the hub to the WebSocket connection.
+func (c *ws.Client) writePump() {
+	defer c.conn.Close()
+	for message := range c.send {
+		if err := c.conn.WriteMessage(websocket.TextMessage, message); err != nil {
 			log.Printf("Write error: %v", err)
 			break
 		}
 	}
 }
 
-// homeHandler provides a simple home page.
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	fmt.Fprint(w, "WebSocket server is running. Connect to /ws")
-}
-
 func main() {
-	// Create a new chi router.
-	r := chi.NewRouter()
+	hub := NewHub()
+	go hub.Run()
 
-	// Use some basic middleware.
+	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
 
-	// Define HTTP routes.
 	r.Get("/", homeHandler)
-	r.Get("/ws", echoHandler)
+	r.Get("/ws", func(w http.ResponseWriter, r *http.Request) {
+		serveWs(hub, w, r)
+	})
 
-	// Start the HTTP server.
 	addr := ":8080"
 	log.Printf("Server started on %s", addr)
 	if err := http.ListenAndServe(addr, r); err != nil {
