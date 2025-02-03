@@ -1,11 +1,14 @@
 package main
 
 import (
+	"errors"
+	"log"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	ws "github.com/vlkhvnn/DocCollab/internal/ws/hub"
+	"github.com/vlkhvnn/DocCollab/internal/ws"
 )
 
 type application struct {
@@ -17,7 +20,7 @@ type config struct {
 	hub  *ws.Hub
 }
 
-func mount(app *application) *chi.Mux {
+func (app *application) mount() *chi.Mux {
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
 	r.Use(middleware.Recoverer)
@@ -29,7 +32,18 @@ func mount(app *application) *chi.Mux {
 	return r
 }
 
-// homeHandler provides a simple home page.
-func homeHandler(w http.ResponseWriter, r *http.Request) {
-	w.Write([]byte("WebSocket server is running. Connect to /ws"))
+func (app *application) run(mux *chi.Mux) error {
+	srv := &http.Server{
+		Addr:         app.config.addr,
+		Handler:      mux,
+		WriteTimeout: 30 * time.Second,
+		ReadTimeout:  10 * time.Second,
+		IdleTimeout:  time.Minute,
+	}
+	log.Printf("server is listening on %s", app.config.addr)
+	err := srv.ListenAndServe()
+	if !errors.Is(err, http.ErrServerClosed) {
+		return err
+	}
+	return nil
 }
