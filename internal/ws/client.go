@@ -1,28 +1,41 @@
+// internal/ws/client.go
 package ws
 
 import (
+	"encoding/json"
 	"log"
 
 	"github.com/gorilla/websocket"
 )
 
+// Client represents a single WebSocket connection.
 type Client struct {
 	Conn *websocket.Conn
 	Send chan []byte
 }
 
-func (c *Client) ReadPump(hub *Hub) {
+func (c *Client) ReadPump(room *Room) {
 	defer func() {
-		hub.Unregister <- c
+		room.Unregister <- c
 		c.Conn.Close()
 	}()
 	for {
-		_, message, err := c.Conn.ReadMessage()
+		_, messageBytes, err := c.Conn.ReadMessage()
 		if err != nil {
 			log.Printf("Read error: %v", err)
 			break
 		}
-		hub.Broadcast <- message
+
+		// Optionally decode JSON (for logging/processing).
+		var msg Message
+		if err := json.Unmarshal(messageBytes, &msg); err != nil {
+			log.Printf("JSON unmarshal error: %v", err)
+			continue
+		}
+		log.Printf("Received in room %s: %+v", room.ID, msg)
+
+		// Broadcast the message to the room.
+		room.Broadcast <- messageBytes
 	}
 }
 

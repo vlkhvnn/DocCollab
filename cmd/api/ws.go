@@ -8,16 +8,32 @@ import (
 )
 
 func (app *application) serveWs(w http.ResponseWriter, r *http.Request) {
-	conn, err := upgrader.Upgrade(w, r, nil)
-	if err != nil {
-		log.Printf("Failed to upgrade connection: %v", err)
+	// Extract the document ID from query parameters.
+	docID := r.URL.Query().Get("docID")
+	if docID == "" {
+		http.Error(w, "docID parameter missing", http.StatusBadRequest)
 		return
 	}
 
-	client := &ws.Client{Conn: conn, Send: make(chan []byte, 256)}
-	app.config.hub.Register <- client
+	// Upgrade the HTTP connection to a WebSocket.
+	conn, err := upgrader.Upgrade(w, r, nil)
+	if err != nil {
+		log.Printf("WebSocket upgrade error: %v", err)
+		return
+	}
 
-	// Start goroutines for reading from and writing to the client.
-	go client.ReadPump(app.config.hub)
+	// Create a new client.
+	client := &ws.Client{
+		Conn: conn,
+		Send: make(chan []byte, 256),
+	}
+
+	// Get the room for the specified document.
+	room := app.config.hub.GetRoom(docID)
+	// Register the client with the room.
+	room.Register <- client
+
+	// Start client read and write pumps, passing in the room.
+	go client.ReadPump(room)
 	go client.WritePump()
 }

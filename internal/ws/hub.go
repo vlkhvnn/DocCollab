@@ -1,54 +1,32 @@
+// internal/ws/hub.go
 package ws
 
-import (
-	"log"
-	"sync"
-)
+import "sync"
 
+// Hub manages multiple document rooms.
 type Hub struct {
-	Clients    map[*Client]bool
-	Broadcast  chan []byte
-	Register   chan *Client
-	Unregister chan *Client
-	Mu         sync.Mutex
+	Rooms map[string]*Room
+	Mu    sync.Mutex
 }
 
+// NewHub creates a new Hub instance.
 func NewHub() *Hub {
 	return &Hub{
-		Clients:    make(map[*Client]bool),
-		Broadcast:  make(chan []byte),
-		Register:   make(chan *Client),
-		Unregister: make(chan *Client),
+		Rooms: make(map[string]*Room),
 	}
 }
 
-func (h *Hub) Run() {
-	for {
-		select {
-		case client := <-h.Register:
-			h.Mu.Lock()
-			h.Clients[client] = true
-			h.Mu.Unlock()
-			log.Printf("New client registered. Total clients: %d", len(h.Clients))
-		case client := <-h.Unregister:
-			h.Mu.Lock()
-			if _, ok := h.Clients[client]; ok {
-				delete(h.Clients, client)
-				close(client.Send)
-				log.Printf("Client unregistered. Total clients: %d", len(h.Clients))
-			}
-			h.Mu.Unlock()
-		case message := <-h.Broadcast:
-			h.Mu.Lock()
-			for client := range h.Clients {
-				select {
-				case client.Send <- message:
-				default:
-					close(client.Send)
-					delete(h.Clients, client)
-				}
-			}
-			h.Mu.Unlock()
-		}
+// GetRoom retrieves an existing room for the given document ID,
+// or creates a new one if it doesn't exist.
+func (h *Hub) GetRoom(docID string) *Room {
+	h.Mu.Lock()
+	defer h.Mu.Unlock()
+	room, exists := h.Rooms[docID]
+	if !exists {
+		room = NewRoom(docID)
+		h.Rooms[docID] = room
+		// Start the room's event loop.
+		go room.Run()
 	}
+	return room
 }

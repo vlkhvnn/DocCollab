@@ -23,6 +23,5 @@ func main() {
 	}
 	app := &application{config: cfg}
 	mux := app.mount()
-	go app.config.hub.Run()
 	log.Fatal(app.run(mux))
 }
