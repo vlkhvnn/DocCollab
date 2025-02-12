@@ -1,8 +1,6 @@
-// internal/ws/client.go
 package ws
 
 import (
-	"encoding/json"
 	"log"
 
 	"github.com/gorilla/websocket"
@@ -26,16 +24,11 @@ func (c *Client) ReadPump(room *Room) {
 			break
 		}
 
-		// Optionally decode JSON (for logging/processing).
-		var msg Message
-		if err := json.Unmarshal(messageBytes, &msg); err != nil {
-			log.Printf("JSON unmarshal error: %v", err)
-			continue
+		// Here we assume that clients send "update" messages with the full text.
+		room.Broadcast <- BroadcastMessage{
+			Sender: c,
+			Data:   messageBytes,
 		}
-		log.Printf("Received in room %s: %+v", room.ID, msg)
-
-		// Broadcast the message to the room.
-		room.Broadcast <- messageBytes
 	}
 }
 

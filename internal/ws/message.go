@@ -7,6 +7,11 @@ type Message struct {
 	DocID     string    `json:"docID"`
 	Position  int       `json:"position"`
 	Text      string    `json:"text"`
-	User      string    `json:"user"`
+	UserID    string    `json:"userID"`
 	Timestamp time.Time `json:"timestamp"`
+}
+
+type BroadcastMessage struct {
+	Sender *Client
+	Data   []byte
 }
