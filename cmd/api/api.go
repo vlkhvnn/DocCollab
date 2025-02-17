@@ -8,16 +8,47 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/vlkhvnn/DocCollab/internal/ws"
+	"github.com/vlkhvnn/DocCollab/internal/auth"
+	"github.com/vlkhvnn/DocCollab/internal/store"
+	"github.com/vlkhvnn/DocCollab/internal/websocket"
+	"go.uber.org/zap"
 )
 
 type application struct {
-	config config
+	config        config
+	store         store.Storage
+	logger        *zap.SugaredLogger
+	authenticator auth.Authenticator
 }
 
 type config struct {
 	addr string
-	hub  *ws.Hub
+	hub  *websocket.Hub
+	db   dbconfig
+	auth authConfig
+}
+
+type dbconfig struct {
+	addr         string
+	maxOpenConns int
+	maxIdleConns int
+	maxIdleTime  string
+}
+
+type authConfig struct {
+	basic basicConfig
+	token tokenConfig
+}
+
+type basicConfig struct {
+	user string
+	pass string
+}
+
+type tokenConfig struct {
+	secret string
+	exp    time.Duration
+	iss    string
 }
 
 func (app *application) mount() *chi.Mux {
@@ -28,6 +59,12 @@ func (app *application) mount() *chi.Mux {
 	r.Route("/v1", func(r chi.Router) {
 		r.Get("/health", app.healthCheckHandler)
 		r.Get("/ws", app.serveWs)
+
+		// Public authentication routes.
+		r.Route("/auth", func(r chi.Router) {
+			r.Post("/register", app.signupHandler)
+			r.Post("/token", app.createTokenHandler)
+		})
 	})
 	return r
 }

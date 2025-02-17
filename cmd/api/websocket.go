@@ -4,7 +4,7 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/vlkhvnn/DocCollab/internal/ws"
+	"github.com/vlkhvnn/DocCollab/internal/websocket"
 )
 
 func (app *application) serveWs(w http.ResponseWriter, r *http.Request) {
@@ -20,7 +20,7 @@ func (app *application) serveWs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	client := &ws.Client{
+	client := &websocket.Client{
 		Conn: conn,
 		Send: make(chan []byte, 256),
 	}
