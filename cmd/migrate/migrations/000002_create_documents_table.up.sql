@@ -1,0 +1,6 @@
+CREATE TABLE IF NOT EXISTS documents (
+  id SERIAL PRIMARY KEY,
+  doc_id TEXT UNIQUE NOT NULL,
+  content TEXT DEFAULT '',
+  updated_at TIMESTAMPTZ DEFAULT NOW()
+);

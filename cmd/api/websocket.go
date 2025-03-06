@@ -25,7 +25,7 @@ func (app *application) serveWs(w http.ResponseWriter, r *http.Request) {
 		Send: make(chan []byte, 256),
 	}
 
-	room := app.config.hub.GetRoom(docID)
+	room := app.hub.GetRoom(docID)
 	room.Register <- client
 
 	go client.ReadPump(room)

@@ -20,11 +20,11 @@ type application struct {
 	store         store.Storage
 	logger        *zap.SugaredLogger
 	authenticator auth.Authenticator
+	hub           *websocket.Hub
 }
 
 type config struct {
 	addr string
-	hub  *websocket.Hub
 	db   dbconfig
 	auth authConfig
 }
@@ -75,6 +75,8 @@ func (app *application) mount() *chi.Mux {
 			r.Post("/register", app.signupHandler)
 			r.Post("/token", app.createTokenHandler)
 		})
+
+		r.Post("/document", app.createDocumentHandler)
 	})
 	return r
 }

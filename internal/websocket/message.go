@@ -10,8 +10,3 @@ type Message struct {
 	UserID    string    `json:"userID"`
 	Timestamp time.Time `json:"timestamp"`
 }
-
-type BroadcastMessage struct {
-	Sender *Client
-	Data   []byte
-}

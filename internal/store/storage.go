@@ -20,11 +20,17 @@ type Storage struct {
 		GetByEmail(context.Context, string) (*User, error)
 		Delete(context.Context, int64) error
 	}
+	Document interface {
+		GetDocumentByDocID(context.Context, string) (*Document, error)
+		CreateDocument(context.Context, string, string) error
+		UpdateDocument(context.Context, string, string) error
+	}
 }
 
 func NewStorage(db *sql.DB) Storage {
 	return Storage{
-		User: &UserStore{db},
+		User:     &UserStore{db},
+		Document: &DocumentStore{db},
 	}
 }
 

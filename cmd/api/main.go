@@ -31,7 +31,6 @@ func main() {
 	}
 	cfg := config{
 		addr: env.GetString("ADDR", ":8080"),
-		hub:  ws.NewHub(),
 		db: dbconfig{
 			addr:         env.GetString("DB_ADDR", "postgres://postgres:1234@localhost/doccollab?sslmode=disable"),
 			maxOpenConns: env.GetInt("DB_MAX_OPEN_CONNS", 30),
@@ -74,6 +73,7 @@ func main() {
 		store:         store,
 		authenticator: jwtAuthenticator,
 		logger:        logger,
+		hub:           ws.NewHub(&store),
 	}
 	mux := app.mount()
 	logger.Fatal(app.run(mux))

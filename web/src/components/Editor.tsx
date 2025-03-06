@@ -1,5 +1,6 @@
 // src/components/Editor.tsx
 import React, { useEffect, useState } from 'react';
+import { useParams } from 'react-router-dom';
 import { Message } from '../types/message';
 
 interface EditorProps {
@@ -7,16 +8,17 @@ interface EditorProps {
   userID: string;
 }
 
-const docID = 'doc123'; // Fixed for this demo
 const Editor: React.FC<EditorProps> = ({ token, userID }) => {
+  const { docID } = useParams<{ docID: string }>();
   const [ws, setWs] = useState<WebSocket | null>(null);
   const [connectionStatus, setConnectionStatus] = useState<string>('Disconnected');
   const [content, setContent] = useState<string>('');
 
   // Construct the WebSocket URL including token and docID.
-  const wsUrl = `ws://localhost:8080/v1/ws?docID=${encodeURIComponent(docID)}&token=${encodeURIComponent(token)}`;
+  const wsUrl = `ws://localhost:8080/v1/ws?docID=${encodeURIComponent(docID || '')}&token=${encodeURIComponent(token)}`;
 
   useEffect(() => {
+    if (!docID) return;
     const socket = new WebSocket(wsUrl);
     setWs(socket);
 
@@ -49,7 +51,7 @@ const Editor: React.FC<EditorProps> = ({ token, userID }) => {
     return () => {
       socket.close();
     };
-  }, [wsUrl]);
+  }, [wsUrl, docID]);
 
   const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const newContent = e.target.value;
@@ -57,7 +59,7 @@ const Editor: React.FC<EditorProps> = ({ token, userID }) => {
     if (ws && ws.readyState === WebSocket.OPEN) {
       const message: Message = {
         type: 'update',
-        docID: docID,
+        docID: docID || '',
         position: 0, // Not used in this simple example.
         text: newContent,
         userID: userID,
@@ -72,6 +74,7 @@ const Editor: React.FC<EditorProps> = ({ token, userID }) => {
       <h1>DocCollab Editor</h1>
       <p>Status: {connectionStatus}</p>
       <p>Your User ID: {userID}</p>
+      <p>Editing Document: {docID}</p>
       <textarea
         value={content}
         onChange={handleContentChange}

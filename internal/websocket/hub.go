@@ -1,29 +1,34 @@
 package websocket
 
-import "sync"
+import (
+	"sync"
+
+	"github.com/vlkhvnn/DocCollab/internal/store"
+)
 
 // Hub manages multiple document rooms.
 type Hub struct {
-	Rooms map[string]*Room
-	Mu    sync.Mutex
+	Rooms   map[string]*Room
+	Mu      sync.Mutex
+	Storage *store.Storage
 }
 
-// NewHub creates a new Hub.
-func NewHub() *Hub {
+func NewHub(storage *store.Storage) *Hub {
 	return &Hub{
-		Rooms: make(map[string]*Room),
+		Rooms:   make(map[string]*Room),
+		Storage: storage,
 	}
 }
 
-// GetRoom returns an existing room or creates a new one for the given docID.
+// GetRoom retrieves or creates a room with the given docID.
 func (h *Hub) GetRoom(docID string) *Room {
 	h.Mu.Lock()
 	defer h.Mu.Unlock()
-	room, exists := h.Rooms[docID]
-	if !exists {
-		room = NewRoom(docID)
+	room, ok := h.Rooms[docID]
+	if !ok {
+		room = NewRoom(docID, h.Storage)
 		h.Rooms[docID] = room
-		go room.Run() // Start the room's event loop.
+		go room.Run()
 	}
 	return room
 }
